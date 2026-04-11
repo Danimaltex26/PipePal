@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 
 const API_ROOT = import.meta.env.VITE_API_URL || '';
+const BASE = `${API_ROOT}/api`;
 
 async function getToken() {
   const { data } = await supabase.auth.getSession();
@@ -15,7 +16,7 @@ async function request(path, options = {}) {
     headers['Content-Type'] = 'application/json';
   }
 
-  const res = await fetch(`${API_ROOT}${path}`, { ...options, headers });
+  const res = await fetch(`${BASE}${path}`, { ...options, headers });
   if (!res.ok) {
     let message = `Request failed (${res.status})`;
     try {

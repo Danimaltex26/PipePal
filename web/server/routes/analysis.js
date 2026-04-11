@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
 import auth from "../middleware/auth.js";
 import { PLUMBING_ANALYSIS_SYSTEM_PROMPT } from "../prompts/analysis.js";
+import { sendAnalysisReadyEmail } from "../utils/email.js";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024 } });
@@ -133,6 +134,14 @@ router.post("/", auth, upload.array("images", 4), async (req, res) => {
       console.error("Save error:", saveError);
       return res.json({ result, saved: false, save_error: saveError.message });
     }
+
+    // Fire-and-forget email notification
+    sendAnalysisReadyEmail({
+      to: req.profile.email,
+      appKey: "pipepal",
+      displayName: req.profile.display_name,
+      analysisType: result.analysis_type || analysis_type || "general",
+    }).catch((err) => console.error("Email notification error:", err.message));
 
     return res.json({ result, record_id: saved.id });
   } catch (err) {

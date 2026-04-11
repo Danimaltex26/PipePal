@@ -1,4 +1,29 @@
 import { NavLink, Outlet } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { getQueueByStatus } from '../utils/offlineDb';
+
+function useQueueBadge() {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function check() {
+      try {
+        const pending = await getQueueByStatus('pending');
+        const completed = await getQueueByStatus('completed');
+        const failed = await getQueueByStatus('failed');
+        if (mounted) setCount(pending.length + completed.length + failed.length);
+      } catch { /* ignore */ }
+    }
+
+    check();
+    const id = setInterval(check, 3000);
+    return () => { mounted = false; clearInterval(id); };
+  }, []);
+
+  return count;
+}
 
 const TABS = [
   {
@@ -55,6 +80,8 @@ const TABS = [
 const ACTIVE_COLOR = '#3B82F6';
 
 export default function TabLayout() {
+  const badgeCount = useQueueBadge();
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       {/* Header */}
@@ -101,10 +128,31 @@ export default function TabLayout() {
               fontSize: 11,
               fontWeight: isActive ? 600 : 400,
               transition: 'color 0.15s',
+              position: 'relative',
             })}
           >
             {tab.icon}
             <span>{tab.label}</span>
+            {tab.to === '/analysis' && badgeCount > 0 && (
+              <span style={{
+                position: 'absolute',
+                top: -4,
+                right: -8,
+                background: '#EF4444',
+                color: '#fff',
+                fontSize: 10,
+                fontWeight: 700,
+                minWidth: 16,
+                height: 16,
+                borderRadius: 8,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '0 4px',
+              }}>
+                {badgeCount}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>

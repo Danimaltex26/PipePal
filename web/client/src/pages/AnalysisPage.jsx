@@ -1,6 +1,8 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { apiUpload } from '../utils/api';
 import LoadingSpinner from '../components/LoadingSpinner';
+import useOfflineQueue from '../hooks/useOfflineQueue';
+import OfflineQueue from '../components/OfflineQueue';
 
 const AI_MESSAGES = [
   'Analyzing your plumbing photo...',
@@ -32,10 +34,34 @@ export default function AnalysisPage() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const fileInputRef = useRef(null);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+
+  const {
+    queue, enqueue, retry, dismiss, clearCompleted, processing,
+  } = useOfflineQueue();
+
+  // Track online/offline status
+  useEffect(() => {
+    const goOffline = () => setIsOffline(true);
+    const goOnline = () => setIsOffline(false);
+    window.addEventListener('offline', goOffline);
+    window.addEventListener('online', goOnline);
+    return () => {
+      window.removeEventListener('offline', goOffline);
+      window.removeEventListener('online', goOnline);
+    };
+  }, []);
 
   async function handleUpload(e) {
     const files = e.target.files;
     if (!files || files.length === 0) return;
+
+    // If offline, queue for later
+    if (!navigator.onLine) {
+      await enqueue(files, analysisType);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
 
     setError('');
     setResult(null);
@@ -188,6 +214,21 @@ export default function AnalysisPage() {
             Upload a photo of plumbing for AI-powered analysis
           </p>
         </div>
+
+        {isOffline && (
+          <div className="warning-box">
+            You are offline. Photos will be queued and uploaded when connectivity returns.
+          </div>
+        )}
+
+        <OfflineQueue
+          queue={queue}
+          onRetry={retry}
+          onDismiss={dismiss}
+          onViewResult={(item) => { setResult(item.result); dismiss(item.id); }}
+          onClearCompleted={clearCompleted}
+          processing={processing}
+        />
 
         {error && <div className="error-banner">{error}</div>}
 

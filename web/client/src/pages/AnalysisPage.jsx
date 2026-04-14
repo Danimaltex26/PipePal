@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { apiUpload } from '../utils/api';
+import { compressImage } from '../utils/compressImage';
 import LoadingSpinner from '../components/LoadingSpinner';
 import useOfflineQueue from '../hooks/useOfflineQueue';
 import OfflineQueue from '../components/OfflineQueue';
@@ -70,7 +71,8 @@ export default function AnalysisPage() {
 
     const formData = new FormData();
     for (let i = 0; i < Math.min(files.length, 4); i++) {
-      formData.append('images', files[i]);
+      var compressed = await compressImage(files[i]);
+      formData.append('images', compressed);
     }
     if (analysisType) formData.append('analysis_type', analysisType);
 

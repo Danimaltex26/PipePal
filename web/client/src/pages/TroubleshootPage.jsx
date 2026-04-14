@@ -137,6 +137,7 @@ export default function TroubleshootPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
+  const [model, setModel] = useState('');
 
   const set = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
 
@@ -162,6 +163,7 @@ export default function TroubleshootPage() {
     try {
       const data = await apiPost('/troubleshoot', form);
       setResult(data.result || data);
+      setModel(data.model || '');
     } catch (err) {
       setError(err.message || 'Troubleshoot failed.');
     } finally {
@@ -171,6 +173,7 @@ export default function TroubleshootPage() {
 
   function handleReset() {
     setResult(null);
+    setModel('');
     setError('');
     setForm({
       equipment_type: '',
@@ -195,7 +198,7 @@ export default function TroubleshootPage() {
       <div className="page">
         <div className="stack">
           <div className="page-header">
-            <h2>Diagnosis</h2>
+            <h2 style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>Diagnosis {model && <span style={{ fontSize: '0.6875rem', fontWeight: 400, color: '#6B6B73' }}>{model}</span>}</h2>
           </div>
 
           {/* Summary */}

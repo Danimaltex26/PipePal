@@ -126,13 +126,15 @@ router.post("/", auth, upload.array("images", 4), async (req, res) => {
       return res.json({ result, saved: false, save_error: saveError.message, model: aiResult.model });
     }
 
-    // Fire-and-forget email notification
-    sendAnalysisReadyEmail({
-      to: req.profile.email,
-      appKey: "pipepal",
-      displayName: req.profile.display_name,
-      analysisType: result.analysis_type || analysis_type || "general",
-    }).catch((err) => console.error("Email notification error:", err.message));
+    // Only send email for offline-queued analyses
+    if (req.body.queued) {
+      sendAnalysisReadyEmail({
+        to: req.profile.email,
+        appKey: "pipepal",
+        displayName: req.profile.display_name,
+        analysisType: result.analysis_type || analysis_type || "general",
+      }).catch((err) => console.error("Email notification error:", err.message));
+    }
 
     return res.json({ result, record_id: saved.id, model: aiResult.model });
   } catch (err) {

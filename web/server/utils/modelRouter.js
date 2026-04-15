@@ -46,21 +46,56 @@ const SAFETY_KEYWORDS = [
   'fall', 'crush', 'entrap', 'interlock', 'governor',
 ];
 
+/**
+ * Determines complexity of a PipePal troubleshoot request.
+ * Routes to complex_troubleshoot (Sonnet) when any signal indicates
+ * the problem requires code knowledge or safety-critical diagnosis.
+ *
+ * Signals that escalate to Sonnet:
+ *   - Multi-turn conversation (follow-up)
+ *   - Gas system (highest safety stakes — always Sonnet)
+ *   - Code jurisdiction selected (IPC/UPC citation accuracy)
+ *   - Pressure reading provided (quantitative diagnosis)
+ *   - Specialty pipe material (CSST, cast iron, medical gas)
+ *   - Commercial or industrial installation
+ *   - 2+ already-tried steps (basic remediation exhausted)
+ *   - Safety-critical symptom keywords
+ */
 function classifyTroubleshoot(params) {
-  var {
+  const {
     conversationHistory = [],
     symptom = '',
+    isGasSystem = false,
     requiresCodeCompliance = false,
+    hasPressureReading = false,
     isSpecialtyMaterial = false,
+    isCommercialOrIndustrial = false,
+    alreadyTriedMultiple = false,
   } = params;
 
-  var symptomLower = symptom.toLowerCase();
-  var isSafetyCritical = SAFETY_KEYWORDS.some(function (kw) {
-    return symptomLower.includes(kw);
-  });
-  var isMultiTurn = conversationHistory.length > 0;
-  var isComplex = isMultiTurn || requiresCodeCompliance ||
-                  isSpecialtyMaterial || isSafetyCritical;
+  const safetyCriticalKeywords = [
+    'gas', 'smell', 'leak', 'hiss', 'carbon monoxide', 'co detector',
+    'flood', 'flooding', 'sewage', 'sewer gas', 'backflow',
+    'cross connection', 'scalding', 'no heat', 'frozen', 'burst',
+    'pressure relief', 't&p', 'explosion', 'structural',
+  ];
+
+  const isSafetyCritical = safetyCriticalKeywords.some(
+    kw => symptom.toLowerCase().includes(kw)
+  );
+
+  const isMultiTurn = conversationHistory.length > 0;
+
+  const isComplex = (
+    isMultiTurn              ||  // follow-up = context-dependent reasoning
+    isGasSystem              ||  // gas = always Sonnet, no exceptions
+    requiresCodeCompliance   ||  // code jurisdiction = citation accuracy
+    hasPressureReading       ||  // pressure data = quantitative diagnosis
+    isSpecialtyMaterial      ||  // CSST/cast iron = material knowledge
+    isCommercialOrIndustrial ||  // commercial = larger systems, compliance
+    alreadyTriedMultiple     ||  // exhausted basics = non-obvious cause
+    isSafetyCritical             // gas/flood/CO keywords = no shortcuts
+  );
 
   return isComplex ? 'complex_troubleshoot' : 'simple_troubleshoot';
 }

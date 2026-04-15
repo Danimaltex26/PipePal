@@ -44,25 +44,52 @@ router.post("/", auth, async (req, res) => {
       return res.status(400).json({ error: "A symptom description is required" });
     }
 
-    const userMessage = [
-      `Equipment type: ${equipment_type || "not specified"}`,
-      `Brand/model: ${equipment_brand || "not specified"}`,
-      `System type: ${system_type || "not specified"}`,
-      `Environment: ${environment || "not specified"}`,
-      `Symptom: ${symptom}`,
-      already_tried.length > 0
-        ? `Already tried: ${already_tried.join(", ")}`
-        : "Already tried: nothing yet",
-    ].join("\n");
+    const userMessage = buildTroubleshootMessage(req.body);
 
     const messages = [{ role: "user", content: userMessage }];
 
-    var aiResult = await callClaude({
+    // CLAUDE API CALL: PipePal troubleshoot diagnosis
+    // Model routing: simple symptoms → Haiku, complex → Sonnet
+    // Complexity signals passed via context — see utils/modelRouter.js
+    const troubleshootContext = {
+      // Prior conversation turns — multi-turn escalates to Sonnet
+      conversationHistory: req.body.conversationHistory || [],
+
+      // Primary symptom for safety keyword detection
+      symptom: req.body.symptom || req.body.symptomDescription || '',
+
+      // Gas system = highest safety stakes = always Sonnet
+      isGasSystem: (req.body.system_type || '').toLowerCase().includes('gas') ||
+        (req.body.problem_category || '').toLowerCase().includes('gas'),
+
+      // Code jurisdiction selected = citation accuracy needed = Sonnet
+      requiresCodeCompliance: !!(req.body.code_jurisdiction &&
+        req.body.code_jurisdiction !== 'Unknown'),
+
+      // Pressure reading provided = quantitative diagnosis = Sonnet
+      hasPressureReading: !!(
+        req.body.measured_pressure && String(req.body.measured_pressure).trim()
+      ),
+
+      // Specialty pipe materials requiring material-specific knowledge
+      isSpecialtyMaterial: ['csst', 'cast iron', 'galvanized', 'steam',
+        'medical gas', 'hydronic'].some(
+        m => (req.body.pipe_material || req.body.system_type || '')
+          .toLowerCase().includes(m)
+      ),
+
+      // Commercial or industrial = larger systems, code compliance = Sonnet
+      isCommercialOrIndustrial: ['commercial', 'industrial', 'institutional'].some(
+        t => (req.body.installation_type || '').toLowerCase().includes(t)
+      ),
+
+      // 2+ already-tried steps = beyond basic remediation = Sonnet
+      alreadyTriedMultiple: (req.body.already_tried?.length || 0) >= 2,
+    };
+
+    const aiResult = await callClaude({
       feature: 'troubleshoot',
-      context: {
-        conversationHistory: [],
-        symptom: req.body.symptom || '',
-      },
+      context: troubleshootContext,
       systemPrompt: TROUBLESHOOT_SYSTEM_PROMPT,
       messages,
     });
@@ -120,5 +147,64 @@ router.post("/", auth, async (req, res) => {
     return res.status(500).json({ error: "Internal server error" });
   }
 });
+
+// Builds the user message from form fields.
+// Supports current PipePal fields (equipment_type, equipment_brand,
+// system_type, symptom, environment, already_tried) plus additional
+// spec fields (problem_category, installation_type, pipe_material,
+// code_jurisdiction, measured_pressure, water_temperature) if the
+// frontend is extended later to send them.
+function buildTroubleshootMessage(body) {
+  const lines = [];
+
+  if (body.problem_category) {
+    const categoryLabels = {
+      supply_leak: 'Water supply leak',
+      drain_issue: 'Drain / DWV issue',
+      gas_piping: 'Gas piping issue',
+      water_heater: 'Water heater problem',
+      low_pressure: 'Low water pressure',
+      no_hot_water: 'No hot water',
+      fixture: 'Fixture problem',
+      hydronic: 'Hydronic / boiler system',
+      pressure_test: 'Pressure test failure',
+      other: 'Other',
+    };
+    lines.push(`Problem type: ${categoryLabels[body.problem_category] || body.problem_category}`);
+  }
+  if (body.equipment_type) lines.push(`Equipment type: ${body.equipment_type}`);
+  if (body.installation_type) lines.push(`Installation type: ${body.installation_type}`);
+  if (body.system_type && body.system_type !== 'Unknown') {
+    lines.push(`System type: ${body.system_type}`);
+  }
+  if (body.pipe_material && body.pipe_material !== 'Unknown') {
+    lines.push(`Pipe material: ${body.pipe_material}`);
+  }
+  if (body.code_jurisdiction && body.code_jurisdiction !== 'Unknown') {
+    lines.push(`Code jurisdiction: ${body.code_jurisdiction}`);
+  }
+  if (body.equipment_brand && String(body.equipment_brand).trim()) {
+    lines.push(`Equipment brand: ${String(body.equipment_brand).trim()}`);
+  }
+  if (body.environment) lines.push(`Environment: ${body.environment}`);
+  if (body.measured_pressure && String(body.measured_pressure).trim()) {
+    lines.push(`Measured pressure: ${String(body.measured_pressure).trim()} PSI`);
+  }
+  if (body.water_temperature && String(body.water_temperature).trim()) {
+    lines.push(`Water temperature: ${String(body.water_temperature).trim()}`);
+  }
+  if (body.already_tried && body.already_tried.length > 0) {
+    lines.push(`Already tried: ${body.already_tried.join(', ')}`);
+  }
+  if (body.symptom && String(body.symptom).trim()) {
+    lines.push(`Plumber description: ${String(body.symptom).trim()}`);
+  }
+
+  const contextBlock = lines.length > 0
+    ? lines.join('\n')
+    : 'No additional context provided.';
+
+  return `${contextBlock}\n\nDiagnose this plumbing problem and return your complete assessment as a JSON object exactly matching the schema in your instructions. Determine if service should be left off first.`;
+}
 
 export default router;

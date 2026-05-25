@@ -36,6 +36,8 @@ export default function AnalysisPage() {
   const [model, setModel] = useState('');
   const [error, setError] = useState('');
   const fileInputRef = useRef(null);
+  // Separate input with capture="environment" so Android shows the camera directly.
+  const cameraInputRef = useRef(null);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
 
   const {
@@ -62,6 +64,7 @@ export default function AnalysisPage() {
     if (!navigator.onLine) {
       await enqueue(files, analysisType);
       if (fileInputRef.current) fileInputRef.current.value = '';
+      if (cameraInputRef.current) cameraInputRef.current.value = '';
       return;
     }
 
@@ -697,8 +700,8 @@ export default function AnalysisPage() {
           </select>
         </div>
 
-        {/* Upload Area */}
-        <label
+        {/* Upload Area — two explicit buttons so Android shows the camera reliably */}
+        <div
           style={{
             display: 'flex',
             flexDirection: 'column',
@@ -708,7 +711,6 @@ export default function AnalysisPage() {
             minHeight: 220,
             border: '2px dashed #2A2A2E',
             borderRadius: 16,
-            cursor: 'pointer',
             padding: '2rem',
             textAlign: 'center',
             transition: 'border-color 0.15s',
@@ -733,11 +735,29 @@ export default function AnalysisPage() {
           </svg>
           <div>
             <p style={{ fontSize: '1.0625rem', fontWeight: 600 }}>
-              Tap to upload or take a photo
+              Add a photo to analyze
             </p>
             <p className="text-muted" style={{ fontSize: '0.875rem', marginTop: '0.25rem' }}>
               Photo of pipes, fixtures, valves, or equipment (up to 4)
             </p>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', justifyContent: 'center' }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => cameraInputRef.current?.click()}
+              style={{ backgroundColor: '#3B82F6', color: '#ffffff', border: 'none', minWidth: 160 }}
+            >
+              📷 Take Photo
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => fileInputRef.current?.click()}
+              style={{ minWidth: 180 }}
+            >
+              📁 Choose from Library
+            </button>
           </div>
           <input
             ref={fileInputRef}
@@ -747,7 +767,15 @@ export default function AnalysisPage() {
             onChange={handleUpload}
             style={{ display: 'none' }}
           />
-        </label>
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleUpload}
+            style={{ display: 'none' }}
+          />
+        </div>
       </div>
     </div>
   );
